@@ -20,7 +20,12 @@ const server = new ApolloServer({
 const handler = startServerAndCreateNextHandler(server, {
   context: async (req: NextRequest) => {
     // Ensure database connection before handling any requests
-    await connectDB();
+    try {
+      await connectDB();
+    } catch (error) {
+      console.error("Database connection failed:", error);
+      // Don't crash the request, let resolvers handle the error
+    }
     return {
       req,
     };
