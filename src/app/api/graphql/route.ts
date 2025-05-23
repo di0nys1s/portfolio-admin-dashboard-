@@ -8,9 +8,6 @@ import { experienceResolvers } from "@/graphql/resolvers/experience";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import connectDB from "@/lib/db";
 
-// Connect to MongoDB
-connectDB();
-
 const schema = makeExecutableSchema({
   typeDefs: [portfolioTypeDefs, experienceTypeDefs],
   resolvers: [portfolioResolvers, experienceResolvers],
@@ -22,6 +19,8 @@ const server = new ApolloServer({
 
 const handler = startServerAndCreateNextHandler(server, {
   context: async (req: NextRequest) => {
+    // Ensure database connection before handling any requests
+    await connectDB();
     return {
       req,
     };
