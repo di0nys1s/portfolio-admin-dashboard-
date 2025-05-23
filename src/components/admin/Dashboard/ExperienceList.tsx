@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Calendar, MapPin, Trash2, Clock, Loader2 } from "lucide-react";
+import { Calendar, Trash2, Loader2, Edit } from "lucide-react";
 
 export const GET_EXPERIENCES = gql`
   query GetExperiences {
@@ -41,7 +41,7 @@ export const GET_EXPERIENCES = gql`
   }
 `;
 
-export const DELETE_EXPERIENCE = gql`
+const DELETE_EXPERIENCE = gql`
   mutation DeleteExperience($id: ID!) {
     deleteExperience(id: $id)
   }
@@ -53,7 +53,7 @@ interface Experience {
   company: string;
   location: string;
   startDate: string;
-  endDate?: string | null;
+  endDate?: string;
   current: boolean;
   description: string;
   technologies: string[];
@@ -61,7 +61,13 @@ interface Experience {
   updatedAt: string;
 }
 
-export default function ExperienceList() {
+interface ExperienceListProps {
+  onEditExperience?: (experience: Experience) => void;
+}
+
+export default function ExperienceList({
+  onEditExperience,
+}: ExperienceListProps) {
   const { data, loading, error } = useQuery(GET_EXPERIENCES);
   const [deleteExperience, { loading: deleting }] = useMutation(
     DELETE_EXPERIENCE,
@@ -96,9 +102,9 @@ export default function ExperienceList() {
       <Card>
         <CardContent className="pt-6">
           <div className="text-center text-gray-500">
-            <p>No experience items found.</p>
+            <p>No work experience found.</p>
             <p className="text-sm mt-1">
-              Add your first job experience to get started!
+              Add your first experience to get started!
             </p>
           </div>
         </CardContent>
@@ -114,32 +120,39 @@ export default function ExperienceList() {
     }
   };
 
+  const handleEdit = (experience: Experience) => {
+    if (onEditExperience) {
+      onEditExperience(experience);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
-      month: "long",
+      month: "short",
     });
   };
 
-  const calculateDuration = (
-    startDate: string,
-    endDate?: string | null,
-    current?: boolean
-  ) => {
+  const calculateDuration = (startDate: string, endDate?: string) => {
     const start = new Date(startDate);
-    const end = current ? new Date() : endDate ? new Date(endDate) : new Date();
+    const end = endDate ? new Date(endDate) : new Date();
 
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const years = Math.floor(diffDays / 365);
-    const months = Math.floor((diffDays % 365) / 30);
+    const months =
+      (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
 
-    if (years > 0) {
-      return `${years} year${years > 1 ? "s" : ""} ${
-        months > 0 ? `${months} month${months > 1 ? "s" : ""}` : ""
-      }`;
+    if (months < 1) return "Less than a month";
+    if (months < 12) return `${months} month${months > 1 ? "s" : ""}`;
+
+    const years = Math.floor(months / 12);
+    const remainingMonths = months % 12;
+
+    let duration = `${years} year${years > 1 ? "s" : ""}`;
+    if (remainingMonths > 0) {
+      duration += ` ${remainingMonths} month${remainingMonths > 1 ? "s" : ""}`;
     }
-    return `${months} month${months > 1 ? "s" : ""}`;
+
+    return duration;
   };
 
   return (
@@ -147,99 +160,100 @@ export default function ExperienceList() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg sm:text-2xl font-bold">Work Experience</h2>
         <Badge variant="secondary" className="text-xs">
-          {data.experiences.length} position
+          {data.experiences.length} experience
           {data.experiences.length === 1 ? "" : "s"}
         </Badge>
       </div>
 
       <div className="space-y-4">
-        {data.experiences.map((experience: Experience) => (
+        {data.experiences.map((experience: Experience, index: number) => (
           <Card
             key={experience.id}
-            className="group hover:shadow-lg transition-shadow duration-200"
+            className="group hover:shadow-md transition-shadow duration-200"
           >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
-                <div className="space-y-2 min-w-0 flex-1">
-                  <CardTitle className="text-lg sm:text-xl leading-tight truncate">
-                    {experience.title}
-                  </CardTitle>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1 min-w-0">
-                      <MapPin className="h-4 w-4 shrink-0" />
-                      <span className="truncate">
-                        {experience.company} • {experience.location}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm">
-                    <div className="flex items-center gap-1 text-muted-foreground min-w-0">
-                      <Calendar className="h-4 w-4 shrink-0" />
-                      <span className="truncate">
-                        {formatDate(experience.startDate)} -{" "}
-                        {experience.current
-                          ? "Present"
-                          : experience.endDate
-                          ? formatDate(experience.endDate)
-                          : ""}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <CardTitle className="text-lg leading-tight">
+                      {experience.title}
+                    </CardTitle>
+                    <CardDescription className="font-medium text-gray-900">
+                      {experience.company} • {experience.location}
+                    </CardDescription>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
                       <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <Badge variant="outline" className="text-xs">
-                          {calculateDuration(
-                            experience.startDate,
-                            experience.endDate,
-                            experience.current
-                          )}
-                        </Badge>
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          {formatDate(experience.startDate)} -{" "}
+                          {experience.current
+                            ? "Present"
+                            : formatDate(experience.endDate!)}
+                        </span>
                       </div>
+                      <span>•</span>
+                      <span>
+                        {calculateDuration(
+                          experience.startDate,
+                          experience.endDate
+                        )}
+                      </span>
                       {experience.current && (
-                        <Badge variant="default" className="text-xs">
+                        <Badge variant="default" className="text-xs ml-2">
                           Current
                         </Badge>
                       )}
                     </div>
                   </div>
                 </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0 ml-2"
-                      disabled={deleting}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Experience</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete this work experience?
-                        This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDelete(experience.id)}
-                        className="bg-red-600 hover:bg-red-700"
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(experience)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 shrink-0"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+                        disabled={deleting}
                       >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Experience</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete your experience at{" "}
+                          <strong>{experience.company}</strong>? This action
+                          cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(experience.id)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             </CardHeader>
 
             <CardContent className="space-y-4">
-              <CardDescription className="text-sm sm:text-base leading-relaxed">
+              <p className="text-gray-700 text-sm leading-relaxed">
                 {experience.description}
-              </CardDescription>
+              </p>
 
               <div className="flex flex-wrap gap-1">
                 {experience.technologies.map((tech) => (
@@ -248,6 +262,15 @@ export default function ExperienceList() {
                   </Badge>
                 ))}
               </div>
+
+              {/* Timeline connector */}
+              {index < data.experiences.length - 1 && (
+                <div className="flex items-center gap-3 mt-4 pt-4">
+                  <div className="w-8 flex justify-center">
+                    <div className="w-px h-6 bg-gray-200"></div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

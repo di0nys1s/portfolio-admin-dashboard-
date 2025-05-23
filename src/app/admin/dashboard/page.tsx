@@ -1,4 +1,6 @@
-import { Metadata } from "next";
+"use client";
+
+import { useState } from "react";
 import PortfolioForm from "@/components/admin/Dashboard/PortfolioForm";
 import ExperienceForm from "@/components/admin/Dashboard/ExperienceForm";
 import PortfolioList from "@/components/admin/Dashboard/PortfolioList";
@@ -7,115 +9,61 @@ import DashboardStats from "@/components/admin/Dashboard/DashboardStats";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
-// GraphQL query to fetch counts for metadata
-const GET_DASHBOARD_STATS = `
-  query GetDashboardStats {
-    portfolios {
-      id
-      featured
-    }
-    experiences {
-      id
-      current
-    }
-  }
-`;
-
 interface Portfolio {
   id: string;
+  title: string;
+  description: string;
+  imageUrl?: string;
+  projectUrl?: string;
+  githubUrl?: string;
+  technologies: string[];
   featured: boolean;
 }
 
 interface Experience {
   id: string;
+  title: string;
+  company: string;
+  location: string;
+  startDate: string;
+  endDate?: string;
   current: boolean;
-}
-
-interface DashboardStatsResponse {
-  portfolios: Portfolio[];
-  experiences: Experience[];
-}
-
-async function fetchDashboardStats() {
-  try {
-    const response = await fetch("http://localhost:3000/api/graphql", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: GET_DASHBOARD_STATS,
-      }),
-      cache: "no-store", // Always fetch fresh data for metadata
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch dashboard stats");
-    }
-
-    const { data }: { data: DashboardStatsResponse } = await response.json();
-    return {
-      totalProjects: data?.portfolios?.length || 0,
-      featuredProjects:
-        data?.portfolios?.filter((p: Portfolio) => p.featured)?.length || 0,
-      totalExperiences: data?.experiences?.length || 0,
-      currentJobs:
-        data?.experiences?.filter((e: Experience) => e.current)?.length || 0,
-    };
-  } catch (error) {
-    console.error("Error fetching dashboard stats for metadata:", error);
-    return {
-      totalProjects: 0,
-      featuredProjects: 0,
-      totalExperiences: 0,
-      currentJobs: 0,
-    };
-  }
-}
-
-export async function generateMetadata(): Promise<Metadata> {
-  const stats = await fetchDashboardStats();
-
-  const title = `Admin Dashboard - ${stats.totalProjects} Projects, ${stats.totalExperiences} Experiences`;
-  const description = `Manage your portfolio with ${
-    stats.totalProjects
-  } projects (${stats.featuredProjects} featured) and ${
-    stats.totalExperiences
-  } work experiences${
-    stats.currentJobs > 0
-      ? ` including ${stats.currentJobs} current position${
-          stats.currentJobs > 1 ? "s" : ""
-        }`
-      : ""
-  }. Create, edit, and organize your professional portfolio.`;
-
-  return {
-    title,
-    description,
-    keywords: [
-      "portfolio",
-      "dashboard",
-      "admin",
-      "projects",
-      "experience",
-      "management",
-      "professional",
-      "work history",
-    ],
-    openGraph: {
-      title,
-      description,
-      type: "website",
-    },
-    twitter: {
-      card: "summary",
-      title,
-      description,
-    },
-  };
+  description: string;
+  technologies: string[];
 }
 
 export default function DashboardPage() {
+  const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(
+    null
+  );
+  const [editingExperience, setEditingExperience] = useState<Experience | null>(
+    null
+  );
+
+  const handleEditPortfolio = (portfolio: Portfolio) => {
+    setEditingPortfolio(portfolio);
+    // Scroll to the form
+    document
+      .getElementById("portfolio-form")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleCancelEditPortfolio = () => {
+    setEditingPortfolio(null);
+  };
+
+  const handleEditExperience = (experience: Experience) => {
+    setEditingExperience(experience);
+    // Scroll to the form
+    document
+      .getElementById("experience-form")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleCancelEditExperience = () => {
+    setEditingExperience(null);
+  };
+
   return (
     <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8 max-w-7xl">
       {/* Header */}
@@ -133,16 +81,20 @@ export default function DashboardPage() {
 
       {/* Portfolio Section */}
       <div className="grid gap-6 sm:gap-8 lg:grid-cols-2 mb-6 sm:mb-8">
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-4 sm:space-y-6" id="portfolio-form">
           <div className="flex items-center justify-between">
             <h2 className="text-lg sm:text-2xl font-bold tracking-tight">
-              Portfolio Projects
+              {editingPortfolio ? "Edit Project" : "Portfolio Projects"}
             </h2>
             <Badge variant="outline" className="text-xs">
-              Create & Manage
+              {editingPortfolio ? "Editing" : "Create & Manage"}
             </Badge>
           </div>
-          <PortfolioForm />
+          <PortfolioForm
+            editingPortfolio={editingPortfolio}
+            onCancelEdit={handleCancelEditPortfolio}
+            onSuccess={handleCancelEditPortfolio}
+          />
         </div>
 
         <div className="space-y-4 sm:space-y-6">
@@ -151,7 +103,7 @@ export default function DashboardPage() {
               Project Gallery
             </h2>
           </div>
-          <PortfolioList />
+          <PortfolioList onEditPortfolio={handleEditPortfolio} />
         </div>
       </div>
 
@@ -159,16 +111,20 @@ export default function DashboardPage() {
 
       {/* Experience Section */}
       <div className="grid gap-6 sm:gap-8 lg:grid-cols-2">
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-4 sm:space-y-6" id="experience-form">
           <div className="flex items-center justify-between">
             <h2 className="text-lg sm:text-2xl font-bold tracking-tight">
-              Work Experience
+              {editingExperience ? "Edit Experience" : "Work Experience"}
             </h2>
             <Badge variant="outline" className="text-xs">
-              Add Experience
+              {editingExperience ? "Editing" : "Add Experience"}
             </Badge>
           </div>
-          <ExperienceForm />
+          <ExperienceForm
+            editingExperience={editingExperience}
+            onCancelEdit={handleCancelEditExperience}
+            onSuccess={handleCancelEditExperience}
+          />
         </div>
 
         <div className="space-y-4 sm:space-y-6">
@@ -177,7 +133,7 @@ export default function DashboardPage() {
               Career Timeline
             </h2>
           </div>
-          <ExperienceList />
+          <ExperienceList onEditExperience={handleEditExperience} />
         </div>
       </div>
     </div>

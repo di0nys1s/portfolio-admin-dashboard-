@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, X } from "lucide-react";
 
 export const CREATE_PORTFOLIO = gql`
   mutation CreatePortfolio($input: PortfolioInput!) {
@@ -30,6 +30,23 @@ export const CREATE_PORTFOLIO = gql`
       githubUrl
       technologies
       featured
+    }
+  }
+`;
+
+export const UPDATE_PORTFOLIO = gql`
+  mutation UpdatePortfolio($id: ID!, $input: PortfolioInput!) {
+    updatePortfolio(id: $id, input: $input) {
+      id
+      title
+      description
+      imageUrl
+      projectUrl
+      githubUrl
+      technologies
+      featured
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -50,12 +67,30 @@ const portfolioSchema = z.object({
 
 type PortfolioFormData = z.infer<typeof portfolioSchema>;
 
+interface Portfolio {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl?: string;
+  projectUrl?: string;
+  githubUrl?: string;
+  technologies: string[];
+  featured: boolean;
+}
+
 interface PortfolioFormProps {
+  editingPortfolio?: Portfolio | null;
+  onCancelEdit?: () => void;
   onSuccess?: () => void;
 }
 
-export default function PortfolioForm({ onSuccess }: PortfolioFormProps) {
+export default function PortfolioForm({
+  editingPortfolio,
+  onCancelEdit,
+  onSuccess,
+}: PortfolioFormProps) {
   const [error, setError] = useState<string | null>(null);
+  const isEditing = !!editingPortfolio;
 
   const [createPortfolio] = useMutation(CREATE_PORTFOLIO, {
     onCompleted: () => {
@@ -69,10 +104,24 @@ export default function PortfolioForm({ onSuccess }: PortfolioFormProps) {
     refetchQueries: [{ query: GET_PORTFOLIOS }],
   });
 
+  const [updatePortfolio] = useMutation(UPDATE_PORTFOLIO, {
+    onCompleted: () => {
+      reset();
+      setError(null);
+      if (onCancelEdit) onCancelEdit();
+      if (onSuccess) onSuccess();
+    },
+    onError: (err) => {
+      setError(err.message);
+    },
+    refetchQueries: [{ query: GET_PORTFOLIOS }],
+  });
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<PortfolioFormData>({
     resolver: zodResolver(portfolioSchema),
@@ -82,33 +131,76 @@ export default function PortfolioForm({ onSuccess }: PortfolioFormProps) {
     },
   });
 
+  // Populate form when editing
+  useEffect(() => {
+    if (editingPortfolio) {
+      setValue("title", editingPortfolio.title);
+      setValue("description", editingPortfolio.description);
+      setValue("imageUrl", editingPortfolio.imageUrl || "");
+      setValue("projectUrl", editingPortfolio.projectUrl || "");
+      setValue("githubUrl", editingPortfolio.githubUrl || "");
+      setValue("technologies", editingPortfolio.technologies.join(", "));
+      setValue("featured", editingPortfolio.featured);
+    }
+  }, [editingPortfolio, setValue]);
+
   const onSubmit: SubmitHandler<PortfolioFormData> = async (data) => {
     try {
-      await createPortfolio({
-        variables: {
-          input: {
-            ...data,
-            technologies: data.technologies
-              .split(",")
-              .map((item) => item.trim())
-              .filter((item) => item !== ""),
-          },
-        },
-      });
+      const input = {
+        ...data,
+        technologies: data.technologies
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item !== ""),
+      };
+
+      if (isEditing && editingPortfolio) {
+        await updatePortfolio({
+          variables: { id: editingPortfolio.id, input },
+        });
+      } else {
+        await createPortfolio({
+          variables: { input },
+        });
+      }
     } catch {
       // GraphQL errors are handled by onError callback
     }
   };
 
+  const handleCancel = () => {
+    reset();
+    setError(null);
+    if (onCancelEdit) onCancelEdit();
+  };
+
   return (
     <Card className="w-full mx-auto">
       <CardHeader>
-        <CardTitle className="text-xl md:text-2xl font-bold">
-          Add New Portfolio Project
-        </CardTitle>
-        <CardDescription>
-          Create a new portfolio project to showcase your work
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-xl md:text-2xl font-bold">
+              {isEditing
+                ? "Edit Portfolio Project"
+                : "Add New Portfolio Project"}
+            </CardTitle>
+            <CardDescription>
+              {isEditing
+                ? "Update your portfolio project details"
+                : "Create a new portfolio project to showcase your work"}
+            </CardDescription>
+          </div>
+          {isEditing && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <form
@@ -228,10 +320,34 @@ export default function PortfolioForm({ onSuccess }: PortfolioFormProps) {
             </Label>
           </div>
 
-          <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isSubmitting ? "Creating..." : "Create Project"}
-          </Button>
+          <div className="flex gap-2">
+            {isEditing && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancel}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            )}
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className={isEditing ? "flex-1" : "w-full"}
+            >
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isSubmitting
+                ? isEditing
+                  ? "Updating..."
+                  : "Creating..."
+                : isEditing
+                ? "Update Project"
+                : "Create Project"}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

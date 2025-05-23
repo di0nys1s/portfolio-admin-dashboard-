@@ -21,7 +21,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ExternalLink, Github, Trash2, Star, Loader2 } from "lucide-react";
+import {
+  ExternalLink,
+  Github,
+  Trash2,
+  Star,
+  Loader2,
+  Edit,
+} from "lucide-react";
 
 export const GET_PORTFOLIOS = gql`
   query GetPortfolios {
@@ -59,7 +66,11 @@ interface Portfolio {
   updatedAt: string;
 }
 
-export default function PortfolioList() {
+interface PortfolioListProps {
+  onEditPortfolio?: (portfolio: Portfolio) => void;
+}
+
+export default function PortfolioList({ onEditPortfolio }: PortfolioListProps) {
   const { data, loading, error } = useQuery(GET_PORTFOLIOS);
   const [deletePortfolio, { loading: deleting }] = useMutation(
     DELETE_PORTFOLIO,
@@ -112,6 +123,12 @@ export default function PortfolioList() {
     }
   };
 
+  const handleEdit = (portfolio: Portfolio) => {
+    if (onEditPortfolio) {
+      onEditPortfolio(portfolio);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -141,38 +158,49 @@ export default function PortfolioList() {
                     </Badge>
                   )}
                 </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0 ml-2"
-                      disabled={deleting}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Delete Portfolio Project
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete &quot;{portfolio.title}
-                        &quot;? This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDelete(portfolio.id)}
-                        className="bg-red-600 hover:bg-red-700"
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(portfolio)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 shrink-0"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+                        disabled={deleting}
                       >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          Delete Portfolio Project
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete &quot;
+                          {portfolio.title}
+                          &quot;? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(portfolio.id)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             </CardHeader>
 
